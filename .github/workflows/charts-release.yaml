@@ -1,12 +1,6 @@
 name: "Charts: Release"
 
-on:
-  push:
-    branches:
-    - main
-    paths:
-    - 'charts/**'
-    - '!/**/README.md'
+on: push
 
 jobs:
   pre-release:
@@ -52,6 +46,6 @@ jobs:
       uses: helm/chart-releaser-action@v1.2.0
       with:
         charts_dir: charts/*
-        charts_repo_url: https://library-charts.k8s-at-home.com
+        charts_repo_url: http://rolfberkenbosch.github.io
       env:
-        CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        CR_TOKEN: "${{ secrets.GITHUBTOKEN }}"
