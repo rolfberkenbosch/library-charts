@@ -46,6 +46,6 @@ jobs:
       uses: helm/chart-releaser-action@v1.2.0
       with:
         charts_dir: charts/*
-        charts_repo_url: http://rolfberkenbosch.github.io
+        charts_repo_url: https://rolfberkenbosch.github.io/library-charts/
       env:
         CR_TOKEN: "${{ secrets.GITHUBTOKEN }}"
