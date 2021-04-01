@@ -2,7 +2,7 @@ apiVersion: v2
 name: common
 description: FFunction library for k8s-at-home charts
 type: library
-version: 2.1.6
+version: 2.1.7
 kubeVersion: ">=1.16.0-0"
 keywords:
 - k8s-at-home
