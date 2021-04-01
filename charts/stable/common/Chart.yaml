@@ -1,6 +1,6 @@
 apiVersion: v2
 name: common
-description: Function library for k8s-at-home charts
+description: FFunction library for k8s-at-home charts
 type: library
 version: 2.1.4
 kubeVersion: ">=1.16.0-0"
