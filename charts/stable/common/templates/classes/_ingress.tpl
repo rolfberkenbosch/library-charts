@@ -1,20 +1,30 @@
 {{/*
-This template serves as a blueprint for all Ingress objects that are created 
+This template serves as a blueprint for all Ingress objects that are created
 within the common library.
 */}}
 {{- define "common.classes.ingress" -}}
-{{- $ingressName := include "common.names.fullname" . -}}
-{{- $values := .Values.ingress -}}
-{{- if hasKey . "ObjectValues" -}}
-  {{- with .ObjectValues.ingress -}}
-    {{- $values = . -}}
+  {{- $fullName := include "common.names.fullname" . -}}
+  {{- $ingressName := $fullName -}}
+  {{- $values := .Values.ingress -}}
+
+  {{- if hasKey . "ObjectValues" -}}
+    {{- with .ObjectValues.ingress -}}
+      {{- $values = . -}}
+    {{- end -}}
+  {{ end -}}
+
+  {{- if and (hasKey $values "nameOverride") $values.nameOverride -}}
+    {{- $ingressName = printf "%v-%v" $ingressName $values.nameOverride -}}
   {{- end -}}
-{{ end -}}
-{{- if hasKey $values "nameSuffix" -}}
-  {{- $ingressName = printf "%v-%v" $ingressName $values.nameSuffix -}}
-{{ end -}}
-{{- $svcName := $values.serviceName | default (include "common.names.fullname" .) -}}
-{{- $svcPort := $values.servicePort | default $.Values.service.port.port -}}
+
+  {{- $primaryService := get .Values.service (include "common.service.primary" .) -}}
+  {{- $defaultServiceName := $fullName -}}
+  {{- if and (hasKey $primaryService "nameOverride") $primaryService.nameOverride -}}
+    {{- $defaultServiceName = printf "%v-%v" $defaultServiceName $primaryService.nameOverride -}}
+  {{- end -}}
+  {{- $defaultServicePort := get $primaryService.ports (include "common.classes.service.ports.primary" (dict "values" $primaryService)) -}}
+  {{- $isStable := include "common.capabilities.ingress.isStable" . }}
+---
 apiVersion: {{ include "common.capabilities.ingress.apiVersion" . }}
 kind: Ingress
 metadata:
@@ -26,58 +36,47 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  {{- if eq (include "common.capabilities.ingress.apiVersion" $) "networking.k8s.io/v1" }}
-  {{- if $values.ingressClassName }}
+  {{- if and $isStable $values.ingressClassName }}
   ingressClassName: {{ $values.ingressClassName }}
-  {{- end }}
   {{- end }}
   {{- if $values.tls }}
   tls:
     {{- range $values.tls }}
     - hosts:
         {{- range .hosts }}
-        - {{ . | quote }}
-        {{- end }}
-        {{- range .hostsTpl }}
         - {{ tpl . $ | quote }}
         {{- end }}
-      {{- if or .secretNameTpl .secretName }}
-      {{- if .secretNameTpl }}
-      secretName: {{ tpl .secretNameTpl $ | quote}}
-      {{- else }}
-      secretName: {{ .secretName }}
-      {{- end }}
+      {{- if .secretName }}
+      secretName: {{ tpl .secretName $ | quote}}
       {{- end }}
     {{- end }}
   {{- end }}
   rules:
   {{- range $values.hosts }}
-  {{- if .hostTpl }}
-    - host: {{ tpl .hostTpl $ | quote }}
-  {{- else }}
-    - host: {{ .host | quote }}
-  {{- end }}
+    - host: {{ tpl .host $ | quote }}
       http:
         paths:
           {{- range .paths }}
-          {{- if .pathTpl }}
-          - path: {{ tpl .pathTpl $ | quote }}
-          {{- else }}
-          - path: {{ .path | quote }}
+          {{- $service := $defaultServiceName -}}
+          {{- $port := $defaultServicePort.port -}}
+          {{- if .service -}}
+            {{- $service = default $service .service.name -}}
+            {{- $port = default $port .service.port -}}
           {{- end }}
-            {{- if eq (include "common.capabilities.ingress.apiVersion" $) "networking.k8s.io/v1" }}
+          - path: {{ tpl .path $ | quote }}
+            {{- if $isStable }}
             pathType: {{ default "Prefix" .pathType }}
             {{- end }}
             backend:
-            {{- if eq (include "common.capabilities.ingress.apiVersion" $) "networking.k8s.io/v1" }}
+              {{- if $isStable }}
               service:
-                name: {{ $svcName }}
+                name: {{ $service }}
                 port:
-                  number: {{ $svcPort }}
-            {{- else }}
-              serviceName: {{ $svcName }}
-              servicePort: {{ $svcPort }}
-            {{- end }}
+                  number: {{ $port }}
+              {{- else }}
+              serviceName: {{ $service }}
+              servicePort: {{ $port }}
+              {{- end }}
           {{- end }}
   {{- end }}
 {{- end }}

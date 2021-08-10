@@ -1,25 +1,23 @@
-{{- /*
-The main container included in the controller.
-*/ -}}
+{{- /* The main container included in the controller */ -}}
 {{- define "common.controller.mainContainer" -}}
 - name: {{ include "common.names.fullname" . }}
-  image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+  image: {{ printf "%s:%s" .Values.image.repository (default .Chart.AppVersion .Values.image.tag) | quote }}
   imagePullPolicy: {{ .Values.image.pullPolicy }}
   {{- with .Values.command }}
-  {{- if kindIs "string" . }}
-  command: {{ . }}
-  {{- else }}
-  command: 
-  {{ toYaml . | nindent 2 }}
-  {{- end }}
+  command:
+    {{- if kindIs "string" . }}
+    - {{ . }}
+    {{- else }}
+      {{ toYaml . | nindent 4 }}
+    {{- end }}
   {{- end }}
   {{- with .Values.args }}
-  {{- if kindIs "string" . }}
-  args: {{ . }}
-  {{- else }}
-  args: 
-  {{ toYaml . | nindent 2 }}
-  {{- end }}
+  args:
+    {{- if kindIs "string" . }}
+    - {{ . }}
+    {{- else }}
+    {{ toYaml . | nindent 4 }}
+    {{- end }}
   {{- end }}
   {{- with .Values.securityContext }}
   securityContext:
@@ -27,58 +25,58 @@ The main container included in the controller.
   {{- end }}
   {{- with .Values.lifecycle }}
   lifecycle:
-    {{- toYaml . | nindent 2 }}
+    {{- toYaml . | nindent 4 }}
   {{- end }}
-  {{- if or .Values.env .Values.envTpl .Values.envValueFrom }}
+  {{- with .Values.termination.messagePath }}
+  terminationMessagePath: {{ . }}
+  {{- end }}
+  {{- with .Values.termination.messagePolicy }}
+  terminationMessagePolicy: {{ . }}
+  {{- end }}
+
+  {{- with .Values.env }}
   env:
-  {{- range $key, $value := .Values.env }}
-  - name: {{ $key }}
-    value: {{ $value | quote }}
-  {{- end }}
-  {{- range $key, $value := .Values.envTpl }}
-  - name: {{ $key }}
-    value: {{ tpl $value $ | quote }}
-  {{- end }}
-  {{- range $key, $value := .Values.envValueFrom }}
-  - name: {{ $key }}
-    valueFrom:
-      {{- $value | toYaml | nindent 6 }}
-  {{- end }}
+    {{- range $k, $v := . }}
+      {{- $name := $k }}
+      {{- $value := $v }}
+      {{- if kindIs "int" $name }}
+        {{- $name = required "environment variables as a list of maps require a name field" $value.name }}
+      {{- end }}
+    - name: {{ quote $name }}
+      {{- if kindIs "map" $value -}}
+        {{- if hasKey $value "value" }}
+            {{- $value = $value.value -}}
+        {{- else if hasKey $value "valueFrom" }}
+          {{- toYaml $value | nindent 6 }}
+        {{- else }}
+          {{- dict "valueFrom" $value | toYaml | nindent 6 }}
+        {{- end }}
+      {{- end }}
+      {{- if not (kindIs "map" $value) }}
+        {{- if kindIs "string" $value }}
+          {{- $value = tpl $value $ }}
+        {{- end }}
+      value: {{ quote $value }}
+      {{- end }}
+    {{- end }}
   {{- end }}
   {{- if or .Values.envFrom .Values.secret }}
   envFrom:
-  {{- with .Values.envFrom }}
-    {{- toYaml . | nindent 2 }}
+    {{- with .Values.envFrom }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if .Values.secret }}
+    - secretRef:
+        name: {{ include "common.names.fullname" . }}
+    {{- end }}
   {{- end }}
-  {{- if or .Values.secret }}
-  - secretRef:
-      name: {{ include "common.names.fullname" . }}
-  {{- end }}
-  {{- end }}
-  {{- include "common.controller.ports" . | trim | nindent 2 }}
+  ports:
+  {{- include "common.controller.ports" . | trim | nindent 4 }}
+  {{- with (include "common.controller.volumeMounts" . | trim) }}
   volumeMounts:
-  {{- range $index, $PVC := .Values.persistence }}
-  {{- if $PVC.enabled }}
-  - mountPath: {{ $PVC.mountPath | default (printf "/%v" $index) }}
-    name: {{ $index }}
-  {{- if $PVC.subPath }}
-    subPath: {{ $PVC.subPath }}
+    {{- nindent 4 . }}
   {{- end }}
-  {{- end }}
-  {{- end }}
-  {{- if .Values.additionalVolumeMounts }}
-    {{- toYaml .Values.additionalVolumeMounts | nindent 2 }}
-  {{- end }}
-  {{- if eq .Values.controllerType "statefulset"  }}
-  {{- range $index, $vct := .Values.volumeClaimTemplates }}
-  - mountPath: {{ $vct.mountPath }}
-    name: {{ $vct.name }}
-  {{- if $vct.subPath }}
-    subPath: {{ $vct.subPath }}
-  {{- end }}
-  {{- end }}
-  {{- end }}
-  {{- include "common.controller.probes" . | nindent 2 }}
+  {{- include "common.controller.probes" . | trim | nindent 2 }}
   {{- with .Values.resources }}
   resources:
     {{- toYaml . | nindent 4 }}

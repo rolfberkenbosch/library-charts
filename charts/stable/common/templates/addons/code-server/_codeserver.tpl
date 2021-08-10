@@ -7,31 +7,25 @@ It will include / inject the required templates based on the given values.
   {{/* Append the code-server container to the additionalContainers */}}
   {{- $container := include "common.addon.codeserver.container" . | fromYaml -}}
   {{- if $container -}}
-    {{- $additionalContainers := append .Values.additionalContainers $container -}}
-    {{- $_ := set .Values "additionalContainers" $additionalContainers -}}
+    {{- $_ := set .Values.additionalContainers "addon-codeserver" $container -}}
   {{- end -}}
 
   {{/* Include the deployKeySecret if not empty */}}
   {{- $secret := include "common.addon.codeserver.deployKeySecret" . -}}
   {{- if $secret -}}
-    {{- print "---" | nindent 0 -}}
     {{- $secret | nindent 0 -}}
   {{- end -}}
 
-  {{/* Append the secret volume to the additionalVolumes */}}
-  {{- $volume := include "common.addon.codeserver.deployKeyVolume" . | fromYaml -}}
+  {{/* Append the secret volume to the volumes */}}
+  {{- $volume := include "common.addon.codeserver.deployKeyVolumeSpec" . | fromYaml -}}
   {{- if $volume -}}
-    {{- $additionalVolumes := append .Values.additionalVolumes $volume }}
-    {{- $_ := set .Values "additionalVolumes" $additionalVolumes -}}
+    {{- $_ := set .Values.persistence "deploykey" (dict "enabled" "true" "mountPath" "-" "type" "custom" "volumeSpec" $volume) -}}
   {{- end -}}
 
   {{/* Add the code-server service */}}
   {{- if .Values.addons.codeserver.service.enabled -}}
-    {{- print ("---") | nindent 0 -}}
     {{- $serviceValues := .Values.addons.codeserver.service -}}
-    {{- if not $serviceValues.nameSuffix -}}
-        {{- $_ := set $serviceValues "nameSuffix" "codeserver" -}}
-    {{ end -}}
+    {{- $_ := set $serviceValues "nameOverride" "codeserver" -}}
     {{- $_ := set $ "ObjectValues" (dict "service" $serviceValues) -}}
     {{- include "common.classes.service" $ -}}
     {{- $_ := unset $ "ObjectValues" -}}
@@ -39,17 +33,15 @@ It will include / inject the required templates based on the given values.
 
   {{/* Add the code-server ingress */}}
   {{- if .Values.addons.codeserver.ingress.enabled -}}
-    {{- print ("---") | nindent 0 -}}
     {{- $ingressValues := .Values.addons.codeserver.ingress -}}
-    {{- if not $ingressValues.nameSuffix -}}
-        {{- $_ := set $ingressValues "nameSuffix" "codeserver" -}}
-    {{ end -}}
+    {{- $_ := set $ingressValues "nameOverride" "codeserver" -}}
 
     {{/* Determine the target service name & port */}}
-    {{- $svcName := printf "%v-%v" (include "common.names.fullname" .) .Values.addons.codeserver.service.nameSuffix -}}
-    {{- $_ := set $ingressValues "serviceName" $svcName -}}
-    {{- $_ := set $ingressValues "servicePort" .Values.addons.codeserver.service.port.port -}}
-
+    {{- $svcName := printf "%v-codeserver" (include "common.names.fullname" .) -}}
+    {{- $svcPort := .Values.addons.codeserver.service.ports.codeserver.port -}}
+    {{- range $_, $host := $ingressValues.hosts -}}
+      {{- $_ := set (index $host.paths 0) "service" (dict "name" $svcName "port" $svcPort) -}}
+    {{- end -}}
     {{- $_ := set $ "ObjectValues" (dict "ingress" $ingressValues) -}}
     {{- include "common.classes.ingress" $ -}}
     {{- $_ := unset $ "ObjectValues" -}}
